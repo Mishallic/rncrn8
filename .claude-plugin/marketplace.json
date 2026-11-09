@@ -1,0 +1,11 @@
+{
+  "name": "rncrn8",
+  "owner": { "name": "Mishal Alshomary" },
+  "plugins": [
+    {
+      "name": "rncrn8",
+      "source": "./plugin",
+      "description": "A review panel of AI personas with sourced memory, whose trust moves with the outcomes you record."
+    }
+  ]
+}

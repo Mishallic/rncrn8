@@ -1,0 +1,6 @@
+{
+  "name": "rncrn8",
+  "version": "0.2.0",
+  "description": "A review panel of AI personas with sourced memory, whose trust moves with the outcomes you record. Runs the rncrn8 MCP server through uvx; needs uv and an Anthropic API key in RNCRN8_API_KEY.",
+  "author": { "name": "Mishal Alshomary" }
+}

@@ -1,0 +1,88 @@
+From 89611edf3362e90dcede7eba87fe3ae06631453f Mon Sep 17 00:00:00 2001
+From: Sam <sam@example.test>
+Date: Mon, 9 Nov 2026 11:55:46 +0000
+Subject: [PATCH 1/2] Customers and invoice lines
+
+---
+ README.md             |  4 ++++
+ invoicing/__init__.py |  0
+ invoicing/db.py       | 19 +++++++++++++++++++
+ invoicing/invoice.py  | 10 ++++++++++
+ tests/test_db.py      |  7 +++++++
+ 5 files changed, 40 insertions(+)
+ create mode 100644 README.md
+ create mode 100644 invoicing/__init__.py
+ create mode 100644 invoicing/db.py
+ create mode 100644 invoicing/invoice.py
+ create mode 100644 tests/test_db.py
+
+diff --git a/README.md b/README.md
+new file mode 100644
+index 0000000..60cf2ac
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1,4 @@
++# invoicing
++
++A small invoicing tool for a shop: customers, invoices with VAT at 20%, and emailing
++invoices to customers. Amounts are in pounds.
+diff --git a/invoicing/__init__.py b/invoicing/__init__.py
+new file mode 100644
+index 0000000..e69de29
+diff --git a/invoicing/db.py b/invoicing/db.py
+new file mode 100644
+index 0000000..a1b350e
+--- /dev/null
++++ b/invoicing/db.py
+@@ -0,0 +1,19 @@
++"""SQLite storage for customers and invoices."""
++
++import sqlite3
++
++
++def connect(path: str = "invoicing.db") -> sqlite3.Connection:
++    conn = sqlite3.connect(path)
++    conn.row_factory = sqlite3.Row
++    conn.execute("CREATE TABLE IF NOT EXISTS customers (id INTEGER PRIMARY KEY, name TEXT, email TEXT)")
++    conn.execute(
++        "CREATE TABLE IF NOT EXISTS invoices (id INTEGER PRIMARY KEY, customer_id INTEGER, total REAL, sent INTEGER DEFAULT 0)"
++    )
++    return conn
++
++
++def add_customer(conn: sqlite3.Connection, name: str, email: str) -> int:
++    cur = conn.execute("INSERT INTO customers (name, email) VALUES (?, ?)", (name, email))
++    conn.commit()
++    return cur.lastrowid
+diff --git a/invoicing/invoice.py b/invoicing/invoice.py
+new file mode 100644
+index 0000000..b419cb0
+--- /dev/null
++++ b/invoicing/invoice.py
+@@ -0,0 +1,10 @@
++"""Invoices for a small shop."""
++
++from dataclasses import dataclass
++
++
++@dataclass
++class Line:
++    description: str
++    quantity: int
++    unit_price: float
+diff --git a/tests/test_db.py b/tests/test_db.py
+new file mode 100644
+index 0000000..9ee0ef0
+--- /dev/null
++++ b/tests/test_db.py
+@@ -0,0 +1,7 @@
++from invoicing.db import add_customer, connect
++
++
++def test_add_customer():
++    conn = connect(":memory:")
++    cid = add_customer(conn, "Acme", "billing@acme.test")
++    assert conn.execute("SELECT name FROM customers WHERE id = ?", (cid,)).fetchone()["name"] == "Acme"
+-- 
+2.43.0
+

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "rncrn8": {
+      "command": "uvx",
+      "args": ["--from", "rncrn8==0.2.0", "rncrn8", "mcp"]
+    }
+  }
+}

@@ -1,0 +1,125 @@
+From 2fee95b87153a7760587415e0ed09e67ad0287e9 Mon Sep 17 00:00:00 2001
+From: Sam <sam@example.test>
+Date: Mon, 9 Nov 2026 11:55:46 +0000
+Subject: [PATCH 2/2] Invoices: totals with VAT, search, paging and emailing
+
+---
+ invoicing/db.py       | 20 ++++++++++++++++++++
+ invoicing/invoice.py  | 19 +++++++++++++++++++
+ invoicing/mailer.py   | 28 ++++++++++++++++++++++++++++
+ tests/test_invoice.py |  7 +++++++
+ 4 files changed, 74 insertions(+)
+ create mode 100644 invoicing/mailer.py
+ create mode 100644 tests/test_invoice.py
+
+diff --git a/invoicing/db.py b/invoicing/db.py
+index a1b350e..4b07d12 100644
+--- a/invoicing/db.py
++++ b/invoicing/db.py
+@@ -17,3 +17,23 @@ def add_customer(conn: sqlite3.Connection, name: str, email: str) -> int:
+     cur = conn.execute("INSERT INTO customers (name, email) VALUES (?, ?)", (name, email))
+     conn.commit()
+     return cur.lastrowid
++
++
++def find_customers(conn: sqlite3.Connection, name: str) -> list[sqlite3.Row]:
++    """Customers whose name contains `name`, for the search box."""
++    return conn.execute(f"SELECT * FROM customers WHERE name LIKE '%{name}%'").fetchall()
++
++
++def list_invoices(conn: sqlite3.Connection, page: int, page_size: int = 20) -> list[sqlite3.Row]:
++    """One page of invoices, newest first. Pages start at 1."""
++    rows = conn.execute("SELECT * FROM invoices ORDER BY id DESC").fetchall()
++    return rows[page * page_size:(page + 1) * page_size]
++
++
++def save_invoice(conn: sqlite3.Connection, invoice) -> int:
++    cur = conn.execute(
++        "INSERT INTO invoices (customer_id, total, sent) VALUES (?, ?, ?)",
++        (invoice.customer_id, invoice.total(), int(invoice.sent)),
++    )
++    conn.commit()
++    return cur.lastrowid
+diff --git a/invoicing/invoice.py b/invoicing/invoice.py
+index b419cb0..d5d3dc5 100644
+--- a/invoicing/invoice.py
++++ b/invoicing/invoice.py
+@@ -2,9 +2,28 @@
+ 
+ from dataclasses import dataclass
+ 
++VAT_RATE = 0.20
++
+ 
+ @dataclass
+ class Line:
+     description: str
+     quantity: int
+     unit_price: float
++
++
++class Invoice:
++    def __init__(self, customer_id: int, lines: list = []):
++        self.customer_id = customer_id
++        self.lines = lines
++        self.sent = False
++
++    def add_line(self, description: str, quantity: int, unit_price: float) -> None:
++        self.lines.append(Line(description, quantity, unit_price))
++
++    def subtotal(self) -> float:
++        return sum(line.quantity * line.unit_price for line in self.lines)
++
++    def total(self) -> float:
++        """Total including VAT, rounded to the penny."""
++        return round(self.subtotal() * (1 + VAT_RATE), 2)
+diff --git a/invoicing/mailer.py b/invoicing/mailer.py
+new file mode 100644
+index 0000000..5fa4534
+--- /dev/null
++++ b/invoicing/mailer.py
+@@ -0,0 +1,28 @@
++"""Emails invoices to customers."""
++
++import smtplib
++from email.message import EmailMessage
++
++SMTP_HOST = "smtp.shopmail.example"
++SMTP_USER = "invoices@shop.example"
++SMTP_PASSWORD = "Shop-Mail-2026!"
++
++
++def send_invoice(conn, invoice, invoice_id: int) -> None:
++    """Email the invoice to its customer and mark it sent."""
++    customer = conn.execute("SELECT * FROM customers WHERE id = ?", (invoice.customer_id,)).fetchone()
++    msg = EmailMessage()
++    msg["To"] = customer["email"]
++    msg["From"] = SMTP_USER
++    msg["Subject"] = f"Invoice {invoice_id}"
++    msg.set_content(f"Your invoice total is £{invoice.total():.2f}.")
++    try:
++        with smtplib.SMTP(SMTP_HOST, 587) as smtp:
++            smtp.starttls()
++            smtp.login(SMTP_USER, SMTP_PASSWORD)
++            smtp.send_message(msg)
++    except Exception:
++        pass
++    invoice.sent = True
++    conn.execute("UPDATE invoices SET sent = 1 WHERE id = ?", (invoice_id,))
++    conn.commit()
+diff --git a/tests/test_invoice.py b/tests/test_invoice.py
+new file mode 100644
+index 0000000..2d46610
+--- /dev/null
++++ b/tests/test_invoice.py
+@@ -0,0 +1,7 @@
++from invoicing.invoice import Invoice
++
++
++def test_total_includes_vat():
++    inv = Invoice(customer_id=1)
++    inv.add_line("Widget", 2, 10.0)
++    assert inv.total() == 24.0
+-- 
+2.43.0
+
