@@ -29,6 +29,7 @@ from pydantic import BaseModel, Field
 from ..config import EngineConfig, SourceType
 from ..engine.beta import BetaCounts
 from .legacy import LEGACY_WORKSPACE_DIRS, adopt
+from .lock import locked
 from .models import MemoryEntry, new_id
 
 WORKSPACE_DIR = ".rncrn8"
@@ -98,8 +99,9 @@ def check_persona_name(name: str) -> str:
 def _append_jsonl(path: Path, record: BaseModel) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     data = (record.model_dump_json() + "\n").encode("utf-8")
-    # one unbuffered write in append mode: concurrent writers do not interleave within a line
-    with open(path, "ab", buffering=0) as f:
+    # Under the file's lock: on POSIX an O_APPEND write is atomic, but on Windows append mode is a seek to the
+    # end and then a write, so two writers can land on the same offset and one record overwrites the other.
+    with locked(path), open(path, "ab", buffering=0) as f:
         f.write(data)
 
 
